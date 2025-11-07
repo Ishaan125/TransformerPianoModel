@@ -138,42 +138,42 @@ def run_preprocessing(midi_folder, seq_length=20, save=True, test=False):
             })
             if save:
                 if test:
-                    np.save("Testing Data/X_test.npy", X_notes)
-                    np.save("Testing Data/y_test.npy", y_notes)
-                    np.save("Testing Data/X_vel_test.npy", X_vel)
-                    np.save("Testing Data/y_vel_test.npy", y_vel)
-                    np.save("Testing Data/X_dur_test.npy", X_dur)
-                    np.save("Testing Data/y_dur_test.npy", y_dur)
+                    np.save("Piano-Model/Testing Data/X_test.npy", X_notes)
+                    np.save("Piano-Model/Testing Data/y_test.npy", y_notes)
+                    np.save("Piano-Model/Testing Data/X_vel_test.npy", X_vel)
+                    np.save("Piano-Model/Testing Data/y_vel_test.npy", y_vel)
+                    np.save("Piano-Model/Testing Data/X_dur_test.npy", X_dur)
+                    np.save("Piano-Model/Testing Data/y_dur_test.npy", y_dur)
                 else:
-                    np.save("Training Data/X.npy", X_notes)
-                    np.save("Training Data/y.npy", y_notes)
-                    np.save("Training Data/X_vel.npy", X_vel)
-                    np.save("Training Data/y_vel.npy", y_vel)
-                    np.save("Training Data/X_dur.npy", X_dur)
-                    np.save("Training Data/y_dur.npy", y_dur)
+                    np.save("Piano-Model/Training Data/X.npy", X_notes)
+                    np.save("Piano-Model/Training Data/y.npy", y_notes)
+                    np.save("Piano-Model/Training Data/X_vel.npy", X_vel)
+                    np.save("Piano-Model/Training Data/y_vel.npy", y_vel)
+                    np.save("Piano-Model/Training Data/X_dur.npy", X_dur)
+                    np.save("Piano-Model/Training Data/y_dur.npy", y_dur)
         else:
             X_notes, y_notes = create_sequences(all_notes, seq_length=seq_length)
             results.update({"X_notes": X_notes, "y_notes": y_notes})
             if save:
                 if test:
-                    np.save("Testing Data/X_test.npy", X_notes)
-                    np.save("Testing Data/y_test.npy", y_notes)
+                    np.save("Piano-Model/Testing Data/X_test.npy", X_notes)
+                    np.save("Piano-Model/Testing Data/y_test.npy", y_notes)
                 else:
-                    np.save("Training Data/X.npy", X_notes)
-                    np.save("Training Data/y.npy", y_notes)
+                    np.save("Piano-Model/Training Data/X.npy", X_notes)
+                    np.save("Piano-Model/Training Data/y.npy", y_notes)
     else:
         print(f"Not enough notes to create sequences (need at least {seq_length + 1} notes).")
 
     # Always save raw velocities/durations if present
     if all_velocities and save:
         if test:
-            np.save("Testing Data/velocities_test.npy", np.array(all_velocities))
+            np.save("Piano-Model/Testing Data/velocities_test.npy", np.array(all_velocities))
         else:
-            np.save("Training Data/velocities.npy", np.array(all_velocities))
+            np.save("Piano-Model/Training Data/velocities.npy", np.array(all_velocities))
     if all_durations and save:
         if test:
-            np.save("Testing Data/durations_test.npy", np.array(all_durations))
+            np.save("Piano-Model/Testing Data/durations_test.npy", np.array(all_durations))
         else:
-            np.save("Training Data/durations.npy", np.array(all_durations))
+            np.save("Piano-Model/Training Data/durations.npy", np.array(all_durations))
 
     return results
