@@ -24,44 +24,22 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, Subset
 
-
 class MidiDataset(Dataset):
     def __init__(self, data_dir: Path, split: str = "train"):
         data_dir = Path(data_dir)
-        # Primary files
         X_path = data_dir / ("X.npy" if split == "train" else "X_test.npy")
-        y_path = data_dir / ("y.npy" if split == "train" else "y_test.npy")
-        X = np.load(X_path)
-        y = np.load(y_path)
-
-        # if not X_path.exists() or not y_path.exists():
-            # Fallback: if only single files exist, load them and caller will split indices
-            # X_path = data_dir / "X.npy"
-            # y_path = data_dir / "y.npy"
-
-        # Optional aligned conditioning
+        y_path = data_dir / ("y.npy" if split == "train" else "y_test.npy")     
         vel_path = data_dir / ("X_vel.npy" if split == "train" else "X_vel_test.npy")
         dur_path = data_dir / ("X_dur.npy" if split == "train" else "X_dur_test.npy")
         y_vel_path = data_dir / ("y_vel.npy" if split == "train" else "y_vel_test.npy")
         y_dur_path = data_dir / ("y_dur.npy" if split == "train" else "y_dur_test.npy")
 
-        X_vel = np.load(vel_path) if vel_path.exists() else None
-        X_dur = np.load(dur_path) if dur_path.exists() else None
-        y_vel = np.load(y_vel_path) if y_vel_path.exists() else None
-        y_dur = np.load(y_dur_path) if y_dur_path.exists() else None
-
-        self.X = torch.from_numpy(X).long()
-        self.y = torch.from_numpy(y).long()
-
-        self.X_vel = torch.from_numpy(X_vel).float() if X_vel is not None else None
-        self.X_dur = torch.from_numpy(X_dur).float() if X_dur is not None else None
-        self.y_vel = torch.from_numpy(y_vel).float() if y_vel is not None else None
-        self.y_dur = torch.from_numpy(y_dur).float() if y_dur is not None else None
-
-        if self.X_vel is not None and self.X_vel.shape[0] != self.X.shape[0]:
-            self.X_vel = None
-        if self.X_dur is not None and self.X_dur.shape[0] != self.X.shape[0]:
-            self.X_dur = None
+        self.X = torch.from_numpy(np.load(X_path)).long()
+        self.y = torch.from_numpy(np.load(y_path)).long()
+        self.X_vel = torch.from_numpy(np.load(vel_path)).float()
+        self.X_dur = torch.from_numpy(np.load(dur_path)).float()
+        self.y_vel = torch.from_numpy(np.load(y_vel_path)).float() 
+        self.y_dur = torch.from_numpy(np.load(y_dur_path)).float()
 
         # infer vocab
         self.vocab_size = int(self.X.max().item() + 1)
@@ -70,13 +48,11 @@ class MidiDataset(Dataset):
         return len(self.X)
 
     def __getitem__(self, idx):
-        x = self.X[idx]
-        y = self.y[idx]
-        x_vel = self.X_vel[idx] if self.X_vel is not None else torch.zeros_like(x, dtype=torch.float32)
-        x_dur = self.X_dur[idx] if self.X_dur is not None else torch.zeros_like(x, dtype=torch.float32)
+        x_vel = self.X_vel[idx] if self.X_vel is not None else torch.zeros_like(self.X[idx], dtype=torch.float32)
+        x_dur = self.X_dur[idx] if self.X_dur is not None else torch.zeros_like(self.X[idx], dtype=torch.float32)
         y_vel = self.y_vel[idx] if self.y_vel is not None else None
         y_dur = self.y_dur[idx] if self.y_dur is not None else None
-        return x, x_vel, x_dur, y, y_vel, y_dur
+        return self.X[idx], x_vel, x_dur, self.y[idx], y_vel, y_dur
 
 
 class PositionalEncoding(nn.Module):
@@ -132,7 +108,7 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument('--data-dir', type=str, default='Training Data', help='Directory containing preprocessed arrays (X.npy/y.npy) or preprocessed training data (defaults to "Training Data")')
     p.add_argument('--batch-size', type=int, default=64)
-    p.add_argument('--epochs', type=int, default=1) # DEFAULT = 30
+    p.add_argument('--epochs', type=int, default=30) # DEFAULT = 30
     p.add_argument('--lr', type=float, default=1e-4)
     p.add_argument('--d-model', type=int, default=256)
     p.add_argument('--nhead', type=int, default=8)
@@ -176,14 +152,12 @@ def train_main():
     N = len(ds_full)
     print(f'Loaded dataset with {N} sequences, vocab_size={ds_full.vocab_size}')
 
-    # Determine train/val/test splits
     # If explicit test file exists, the user can pass separate data_dir with test files or use preprocess to produce X_test.npy
     has_explicit_test = (data_dir / 'X_test.npy').exists() and (data_dir / 'y_test.npy').exists()
 
     if has_explicit_test:
         print('Found explicit test files (X_test.npy/y_test.npy). Using them as test set.')
         ds_train = MidiDataset(data_dir, split='train')
-        ds_val = None
         ds_test = MidiDataset(data_dir, split='test')
         # create loader for train and test (no val)
         train_loader = DataLoader(ds_train, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)

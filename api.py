@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, field_validator
+from typing import AsyncIterator, AsyncIterator, List, Optional, Dict, Any
 import io
 import torch
 from pathlib import Path
@@ -15,7 +16,6 @@ import logging
 logger = logging.getLogger("piano_api")
 logging.basicConfig(level=logging.INFO)
 
-
 class GenRequest(BaseModel):
     seed: List[int] = Field(..., description="Seed pitch tokens (ints)")
     gen_steps: int = Field(200, ge=1, le=2000)
@@ -26,7 +26,7 @@ class GenRequest(BaseModel):
     checkpoint: Optional[str] = Field(None, description="Path to checkpoint. If omitted, the default cached model is used.")
     filename: Optional[str] = Field(None, description="Optional filename for the returned MIDI (basename only). If omitted a timestamped name will be used.")
 
-    @validator("seed")
+    @field_validator("seed")
     def seed_non_empty(cls, v):
         if not isinstance(v, list) or len(v) == 0:
             raise ValueError("seed must be a non-empty list of integer tokens")
@@ -97,44 +97,33 @@ def _to_midi_bytes(generated, vel_norm=True, min_dur=0.02):
 async def _load_checkpoint_to_cache(checkpoint: str, device: torch.device, warmup: bool = True):
     """Load a checkpoint into MODEL_CACHE. Blocking model load runs in a thread."""
     p = Path(checkpoint).expanduser()
-    if not p.exists():
-        # raise FileNotFoundError to let callers decide how to report it
-        raise FileNotFoundError(f"Checkpoint file not found: {p}")
     cp = str(p)
     async with CACHE_LOCK:
         if cp in MODEL_CACHE:
             return MODEL_CACHE[cp]
-        # load in thread to avoid blocking event loop
-        try:
-            model = await asyncio.to_thread(load_model, cp, device)
-        except Exception as e:
-            logger.exception("Failed to load model %s", cp)
-            raise
+
+        model = await asyncio.to_thread(load_model, cp, device)
         entry = {"model": model, "device": device, "loaded_at": time.time()}
         MODEL_CACHE[cp] = entry
-    # optional warmup generation to JIT caches or CUDA context
+
     if warmup:
         try:
             seed = [0] if hasattr(model, "hparams") else [60]
             await asyncio.to_thread(autoregressive_generate, model, seed, 1, 1.0, 1, device, 1.0)
         except Exception:
-            # non-fatal; just log
             logger.debug("Warmup generation failed for %s", cp, exc_info=True)
     return entry
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[dict]:
     """Optionally preload a default checkpoint on startup.
     To enable, set the `DEFAULT_CHECKPOINT` variable at top of file or export an environment variable and modify this file accordingly.
     """
     if DEFAULT_CHECKPOINT:
         device = _select_device(None)
-        try:
-            await _load_checkpoint_to_cache(DEFAULT_CHECKPOINT, device, warmup=True)
-            logger.info("Preloaded default checkpoint %s on %s", DEFAULT_CHECKPOINT, device)
-        except Exception as e:
-            logger.warning("Failed to preload default checkpoint: %s", e)
+        await _load_checkpoint_to_cache(DEFAULT_CHECKPOINT, device, warmup=True)
+        logger.info("Preloaded default checkpoint %s on %s", DEFAULT_CHECKPOINT, device)
 
 
 @app.get("/health")
@@ -156,11 +145,7 @@ async def load_checkpoint(req: LoadRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail=f"checkpoint file not found: {p}")
     cp = str(p)
     device = _select_device(req.device)
-    try:
-        # run load and warmup
-        await _load_checkpoint_to_cache(cp, device, warmup=True)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load checkpoint: {e}")
+    await _load_checkpoint_to_cache(cp, device, warmup=True)
     return {"ok": True, "checkpoint": cp, "device": str(device)}
 
 
@@ -171,13 +156,10 @@ async def unload_checkpoint(checkpoint: str):
         if cp in MODEL_CACHE:
             # attempt to free CUDA memory if on gpu
             entry = MODEL_CACHE.pop(cp)
-            try:
-                model = entry.get("model")
-                if model is not None:
-                    del model
-                    torch.cuda.empty_cache()
-            except Exception:
-                logger.debug("Error while unloading model %s", cp, exc_info=True)
+            model = entry.get("model")
+            if model is not None:
+                del model
+                torch.cuda.empty_cache()
             return {"ok": True, "unloaded": cp}
     raise HTTPException(status_code=404, detail="checkpoint not loaded")
 
@@ -200,12 +182,7 @@ async def generate(req: GenRequest):
         # if provided a checkpoint, try to load on demand
         if req.checkpoint:
             device = _select_device(req.device)
-            try:
-                entry = await _load_checkpoint_to_cache(req.checkpoint, device, warmup=False)
-            except FileNotFoundError as e:
-                raise HTTPException(status_code=400, detail=str(e))
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to load model: {e}")
+            entry = await _load_checkpoint_to_cache(req.checkpoint, device, warmup=False)
         else:
             raise HTTPException(status_code=400, detail="No model cached. Provide `checkpoint` or preload one with /load.")
 
@@ -219,31 +196,15 @@ async def generate(req: GenRequest):
     if seq_len and len(req.seed) > seq_len:
         raise HTTPException(status_code=400, detail=f"seed length ({len(req.seed)}) exceeds model seq_len ({seq_len})")
 
-    # Run generation in thread to avoid blocking event loop
-    try:
-        generated = await asyncio.to_thread(
-            autoregressive_generate,
-            model,
-            req.seed,
-            req.gen_steps,
-            req.temperature,
-            req.top_k,
-            device,
-            req.repeat_penalty,
-        )
-    except Exception as e:
-        logger.exception("Generation failed")
-        raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
+    generated = await asyncio.to_thread(autoregressive_generate, model, req.seed, req.gen_steps,
+        req.temperature,req.top_k,device,req.repeat_penalty,)
 
     midi_bytes = _to_midi_bytes(generated)
     elapsed = time.time() - start_t
     # Determine safe filename (basename only) for Content-Disposition
-    try:
-        if req.filename:
-            safe_name = Path(req.filename).name
-        else:
-            safe_name = f"generated_{int(time.time())}.mid"
-    except Exception:
+    if req.filename:
+        safe_name = Path(req.filename).name
+    else:
         safe_name = f"generated_{int(time.time())}.mid"
 
     headers = {"X-Gen-Time": f"{elapsed:.3f}", "Content-Disposition": f'attachment; filename="{safe_name}"'}

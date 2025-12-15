@@ -36,8 +36,3 @@ Using docker-compose
 ```bash
 docker-compose up --build
 ```
-Edit `docker-compose.yml` to supply a `TORCH_WHEEL` build-arg or enable `runtime: nvidia` for GPU usage.
-
-Notes
-- The image installs `requirements.txt` but does not pin `torch` because the correct wheel depends on host drivers. Use the `TORCH_WHEEL` arg to install a matching torch wheel into the image.
-- For development you can mount the repo into the container (the included compose file does this) so code changes take effect without rebuilding.

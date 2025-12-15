@@ -1,15 +1,14 @@
 # KeyGen - Transformer-Based Music Generator
 
-An AI-powered piano music generation system using PyTorch Transformers. The model learns from MIDI datasets and generates expressive, multi-attribute piano sequences with pitch, velocity, and duration control.
+An AI piano music generation system using PyTorch Transformers. The model learns from MIDI datasets and generates piano sequences with pitch, velocity, and duration control.
 
 ## 🎹 Features
 
 - **Transformer Architecture**: Encoder-based transformer with positional encoding for sequence modeling
 - **Multi-Attribute Generation**: Predicts pitch, velocity (dynamics), and duration for each note
 - **Flexible Inference**: Configurable temperature, top-k sampling, and repeat penalty
-- **FastAPI Server**: Production-ready REST API for music generation with async model caching
+- **FastAPI Server**: REST API for music generation with async model caching
 - **Docker Support**: Containerized deployment with CPU and GPU options
-- **Web Integration**: Easy-to-integrate JavaScript API client for web applications
 
 ## 📁 Project Structure
 
@@ -21,15 +20,17 @@ Piano AI/
 ├── load_model.py         # Inference utilities and post-processing
 ├── output.py             # MIDI file generation from predictions
 ├── api.py                # FastAPI REST API server
-├── main.py               # CLI for training and generation
+├── main.py               # Client for training and generation
 ├── checkpoint.pth        # Trained model weights (create via training)
 ├── requirements.txt      # Python dependencies
 ├── Dockerfile            # Container image for deployment
-├── docker-compose.yml    # Docker Compose orchestration
-└── README_DOCKER.md      # Docker-specific documentation
+├── docker-compose.yml    # Docker Compose
+└── README_DOCKER.md      # Docker specific documentation
 ```
 
 ## 🚀 Quick Start
+
+### ⚠️ Run Main to use the pretrained model checkpoint.pth to generate midi piano files to the Generated Music folder
 
 ### Prerequisites
 
@@ -49,11 +50,9 @@ pip install -r requirements.txt
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### ⚠️ Run Main to use the pretrained model checkpoint.pth to generate midi piano file to gen.mid
+### Optionally Training Your Own Model
 
-### Training Your Model
-
-1. **Prepare MIDI Dataset**: Place MIDI files in organized folders under `Datasets/` or `MIDI Datasets/`:
+1. **Prepare MIDI Dataset**: Place MIDI files in organized folders under `MIDI Datasets/` or use the preloaded datasets:
    ```
    Datasets/
    ├── Classical/
@@ -65,11 +64,13 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
    ```powershell
    python main.py --preprocess --train-folder "Datasets/Classical/Classical"
    ```
+   or set the preprocess argument to true in main
 
 3. **Train Model**:
    ```powershell
    python main.py --train --train-folder "Datasets/Classical/Classical"
    ```
+   or set the train argument to true in main
    
    Training saves checkpoints as `checkpoint.pth` (or `checkpoint_epoch_X.pth`).
 
@@ -77,6 +78,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
    ```powershell
    python main.py --generate --checkpoint checkpoint.pth --seed 60 62 64 65 67 --gen-steps 200
    ```
+   or set the generate argument to true in main
 
 ### Using the API Server
 
@@ -245,7 +247,6 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 **Server connection refused**
 - Ensure FastAPI server is running: `python -m uvicorn api:app --host 0.0.0.0 --port 8000`
 - Check firewall allows port 8000
-- Verify URL in JavaScript matches server address
 
 ## 📝 Development
 
