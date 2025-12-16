@@ -2,6 +2,8 @@
 
 An AI piano music generation system using PyTorch Transformers. The model learns from MIDI datasets and generates piano sequences with pitch, velocity, and duration control.
 
+Link: https://ishaan125.github.io/TransformerPianoModel/
+
 ## 🎹 Features
 
 - **Transformer Architecture**: Encoder-based transformer with positional encoding for sequence modeling
@@ -14,23 +16,28 @@ An AI piano music generation system using PyTorch Transformers. The model learns
 
 ```
 Piano AI/
-├── model.py              # Transformer model architecture
-├── preprocess.py         # MIDI dataset preprocessing pipeline
-├── train.py              # Training script with checkpoint saving
-├── load_model.py         # Inference utilities and post-processing
-├── output.py             # MIDI file generation from predictions
-├── api.py                # FastAPI REST API server
-├── main.py               # Client for training and generation
-├── checkpoint.pth        # Trained model weights (create via training)
-├── requirements.txt      # Python dependencies
-├── Dockerfile            # Container image for deployment
-├── docker-compose.yml    # Docker Compose
-└── README_DOCKER.md      # Docker specific documentation
+├── api.py               # FastAPI app + Mangum handler for Lambda/API Gateway
+├── load_model.py        # Model loading, sampling, post-processing
+├── model.py             # TransformerNextNoteModel definition
+├── output.py            # MIDI writing helpers
+├── main.py              # CLI entry for preprocess/train/generate
+├── preprocess.py        # Dataset preprocessing
+├── train.py             # Training loop (checkpoint saving)
+├── checkpoint.pth       # Trained weights (copied to /opt/model in Lambda image)
+├── requirements.txt     # Python dependencies
+├── Dockerfile           # Local/container build (non-Lambda)
+├── Dockerfile.lambda     # Lambda container image
+├── docker-compose.yml    # Local compose (API + deps)
+├── web.HTML             # Simple frontend page for load/generate calls
+├── Generated Music/      # Generated MIDI outputs (local runs)
+├── MIDI Datasets/        # Source MIDI data
+├── Training Data/       # Prepared training splits (if used)
+└── Testing Data/        # Prepared test/val splits (if used)
 ```
 
 ## 🚀 Quick Start
 
-### ⚠️ Run Main to use the pretrained model checkpoint.pth to generate midi piano files to the Generated Music folder
+### ⚠️ Run Main to use the pretrained model checkpoint.pth to generate midi piano files to the Generated Music folder or use the link to access the website: https://ishaan125.github.io/TransformerPianoModel/
 
 ### Prerequisites
 
@@ -260,6 +267,7 @@ numpy>=1.24.0
 pretty_midi>=0.2.9
 tqdm>=4.66.0
 pydantic>=2.0.0
+mangum>=0.17.0
 ```
 
 ### Testing
