@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: white;
+      border-radius: 10px;
+      padding: 40px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+    button {
+      padding: 12px 24px;
+      margin: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: #667eea;
+      color: white;
+      transition: background 0.3s;
+    }
+    button:hover:not(:disabled) {
+      background: #764ba2;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #spinner {
+      display: none;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status {
+      margin: 20px 0;
+      font-size: 14px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎹 Piano AI Generator</h1>
+    <button id="load">Load Model</button>
+    <button id="gen" disabled>Generate Music</button>
+    <div id="spinner"></div>
+    <div id="status" class="status"></div>
+  </div>
+
+<script>
+const api = "https://dauawokqhe.execute-api.us-east-1.amazonaws.com";
+
+function showSpinner(show) {
+  document.getElementById("spinner").style.display = show ? "block" : "none";
+}
+
+function setStatus(msg) {
+  document.getElementById("status").textContent = msg;
+}
+
+async function loadModel() {
+  showSpinner(true);
+  setStatus("Loading model...");
+  try {
+    const res = await fetch(`${api}/load`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ checkpoint: "/opt/model/checkpoint.pt" })
+    });
+    if (!res.ok) throw new Error("Load failed");
+    document.getElementById("gen").disabled = false;
+    setStatus("Model loaded ✓");
+    showSpinner(false);
+  } catch (e) {
+    setStatus("Error: " + e.message);
+    showSpinner(false);
+  }
+}
+
+async function generate() {
+  showSpinner(true);
+  setStatus("Generating music...");
+  try {
+    const res = await fetch(`${api}/generate`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        seed: [60,62,64,65],
+        max_steps: 64,
+        temperature: 1.0,
+        top_k: 12,
+        repeat_penalty: 1.05,
+      })
+    });
+    if (!res.ok) throw new Error("Generate failed");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "generated.mid";
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus("Music downloaded ✓");
+    showSpinner(false);
+  } catch (e) {
+    setStatus("Error: " + e.message);
+    showSpinner(false);
+  }
+}
+
+document.getElementById("load").onclick = loadModel;
+document.getElementById("gen").onclick = generate;
+</script>
+</body>
+</html>

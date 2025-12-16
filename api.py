@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from typing import AsyncIterator, AsyncIterator, List, Optional, Dict, Any
 import io
+import os
 import torch
 from pathlib import Path
 from load_model import load_model, autoregressive_generate
@@ -12,9 +13,28 @@ import pretty_midi
 import time
 import asyncio
 import logging
+from mangum import Mangum
 
+app = FastAPI(title="Piano AI Generation API")
+handler = Mangum(app)
 logger = logging.getLogger("piano_api")
 logging.basicConfig(level=logging.INFO)
+
+# CORS (if you serve from browser/another host)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# Model cache: mapping checkpoint_path -> { model, device, loaded_at }
+MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
+# Protects cache manipulations and concurrent loads
+CACHE_LOCK = asyncio.Lock()
+# Default checkpoint path (optional). Set via env to avoid hardcoding.
+DEFAULT_CHECKPOINT: Optional[str] = os.getenv("DEFAULT_CHECKPOINT")
+
 
 class GenRequest(BaseModel):
     seed: List[int] = Field(..., description="Seed pitch tokens (ints)")
@@ -36,24 +56,6 @@ class GenRequest(BaseModel):
 class LoadRequest(BaseModel):
     checkpoint: str
     device: Optional[str] = Field(None, description="Explicit device to load model on (e.g. 'cuda' or 'cpu'). If omitted, server chooses.)")
-
-
-app = FastAPI(title="Piano AI Generation API")
-
-# CORS (if you serve from browser/another host)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["*"],
-)
-
-# Model cache: mapping checkpoint_path -> { model, device, loaded_at }
-MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
-# Protects cache manipulations and concurrent loads
-CACHE_LOCK = asyncio.Lock()
-# Default checkpoint path (optional). Set to None to avoid auto-loading.
-DEFAULT_CHECKPOINT: Optional[str] = None
 
 
 def _select_device(requested: Optional[str]) -> torch.device:

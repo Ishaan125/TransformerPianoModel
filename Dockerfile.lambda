@@ -1,0 +1,42 @@
+﻿# Dockerfile for AWS Lambda deployment
+FROM public.ecr.aws/lambda/python:3.11
+
+# Set working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Install build tools with newer GCC
+RUN yum update -y && \
+    yum install -y gcc gcc-c++ make libffi-devel openssl-devel
+
+# Upgrade pip and setuptools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install PyTorch CPU version FIRST (pre-built wheels)
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.2.0
+
+# Pre-install NumPy with pre-built wheel (skip compilation)
+RUN pip install --no-cache-dir --only-binary :all: numpy
+
+# Copy and install other dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Mangum for Lambda-FastAPI adapter
+RUN pip install --no-cache-dir mangum
+
+# Copy application code
+COPY api.py .
+COPY load_model.py .
+COPY model.py .
+COPY output.py .
+
+# Ensure no .pth files remain in task root (they are interpreted as site config and break startup)
+RUN find /var/task -maxdepth 1 -name '*.pth' -delete
+
+# Copy checkpoint (renamed to avoid .pth being treated as site file)
+RUN mkdir -p /opt/model
+COPY checkpoint.pth /opt/model/checkpoint.pt
+ENV DEFAULT_CHECKPOINT=/opt/model/checkpoint.pt
+
+# Set the Lambda handler
+CMD ["api.handler"]
