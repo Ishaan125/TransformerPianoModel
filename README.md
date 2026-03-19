@@ -171,33 +171,6 @@ Content-Type: application/json
 - **Batch Size**: 32 (default)
 - **Epochs**: 10-50 depending on dataset size
 
-## 🐳 Docker Deployment
-
-### Build and Run
-
-```powershell
-# Build image
-docker build -t piano-ai .
-
-# Run container
-docker run -p 8000:8000 piano-ai
-
-# Or use docker-compose
-docker-compose up -d
-```
-
-### GPU Support
-
-```powershell
-# Build with CUDA support
-docker build -t piano-ai-gpu --build-arg TORCH_VERSION=2.2.0+cu118 .
-
-# Run with GPU
-docker run --gpus all -p 8000:8000 piano-ai-gpu
-```
-
-See [README_DOCKER.md](README_DOCKER.md) for detailed Docker instructions.
-
 ## 📊 Hyperparameter Tuning
 
 ### Generation Parameters
@@ -216,18 +189,6 @@ See [README_DOCKER.md](README_DOCKER.md) for detailed Docker instructions.
 - **`learning_rate`**: Initial LR (0.0001-0.001)
 - **`batch_size`**: Training batch size (16-64)
 
-## 🔧 Resume Training
-
-Continue from a previous checkpoint:
-
-```python
-# In train.py, load checkpoint and optimizer state
-checkpoint = torch.load('checkpoint.pth')
-model.load_state_dict(checkpoint['model_state'])
-optimizer.load_state_dict(checkpoint['optimizer_state'])
-start_epoch = checkpoint.get('epoch', 0) + 1
-```
-```
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -268,18 +229,4 @@ pretty_midi>=0.2.9
 tqdm>=4.66.0
 pydantic>=2.0.0
 mangum>=0.17.0
-```
-
-### Testing
-
-```powershell
-# Test model loading
-python -c "from load_model import load_model; m = load_model('checkpoint.pth')"
-
-# Test generation
-python main.py --generate --checkpoint checkpoint.pth --gen-steps 50
-
-# Test API
-python -m uvicorn api:app --reload
-# Then visit http://localhost:8000/docs for Swagger UI
 ```
